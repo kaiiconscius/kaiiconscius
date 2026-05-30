@@ -86,6 +86,20 @@ export default function DireccionPage(){
     try{const res=await fetch(`/api/piloncillo/metas?periodo=${periodo}`);const json=await res.json();setMetas(json.unidades||{});}catch{}
   },[periodo]);
 
+  const exportarUnidades=()=>{
+    const headers='Unidad,Período,Score,Desempeño,Comportamiento,Incidencias,Ingresos,Meta,% Meta';
+    const rows=UNIDADES.map(u=>{
+      const m=metrics[u.id];
+      if(!m) return`${u.nombre},${periodo},Sin datos,,,,,,`;
+      const pct=m.metaMensual>0?Math.round((m.ingresoReal/m.metaMensual)*100):0;
+      return[u.nombre,m.periodo||periodo,m.score,m.desempeno_score,m.comportamiento_score,m.incidencias_score,m.ingresoReal,m.metaMensual,pct+'%'].join(',');
+    });
+    const blob=new Blob(['﻿'+[headers,...rows].join('\n')],{type:'text/csv;charset=utf-8;'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');a.href=url;a.download=`piloncillo-${periodo}.csv`;a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const saveMetas=async()=>{
     setSavingMetas(true);
     try{
@@ -207,7 +221,13 @@ export default function DireccionPage(){
         {/* UNIDADES */}
         {tab==='unidades'&&(
           loading?<div className="text-center py-16 text-amber-400">Cargando...</div>:(
-            <div className="space-y-3">
+            <div>
+              <div className="flex justify-end mb-3">
+                <button onClick={exportarUnidades} className="flex items-center gap-1.5 text-sm bg-white border border-stone-200 rounded-xl px-3 py-2 text-stone-500 hover:border-amber-300 hover:text-amber-700 transition-colors shadow-sm">
+                  📥 Exportar CSV
+                </button>
+              </div>
+              <div className="space-y-3">
               {[...UNIDADES].sort((a,b)=>(metrics[b.id]?.score??-1)-(metrics[a.id]?.score??-1)).map(u=>{
                 const m=metrics[u.id];
                 const metaPct=m&&m.metaMensual>0?Math.round((m.ingresoReal/m.metaMensual)*100):0;
@@ -248,6 +268,7 @@ export default function DireccionPage(){
                   </div>
                 );
               })}
+              </div>
             </div>
           )
         )}

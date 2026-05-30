@@ -191,6 +191,19 @@ export default function UnidadPage(){
 
   if(!info) return null;
 
+  const exportarHistorial=()=>{
+    if(!historial.length) return;
+    const headers='Unidad,Período,Score,Desempeño,Comportamiento,Incidencias,Ingresos,Meta,% Meta,Evaluado por,Notas';
+    const rows=[...historial].sort((a,b)=>b.periodo.localeCompare(a.periodo)).map(e=>{
+      const pct=e.desempeno.metaMensual>0?Math.round((e.desempeno.ingresoReal/e.desempeno.metaMensual)*100):0;
+      return[info.nombre,e.periodo,e.score,e.desempeno_score,e.comportamiento_score,e.incidencias_score,e.desempeno.ingresoReal,e.desempeno.metaMensual,pct+'%',e.evaluadoPor||'','"'+(e.notas||'').replace(/"/g,'""')+'"'].join(',');
+    });
+    const blob=new Blob(['﻿'+[headers,...rows].join('\n')],{type:'text/csv;charset=utf-8;'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');a.href=url;a.download=`${info.nombre.replace(/\s+/g,'-')}-historial.csv`;a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return(
     <div className="min-h-screen bg-stone-50">
       <header className={`bg-gradient-to-br ${info.bg} text-white px-4 pt-10 pb-6`}>
@@ -342,6 +355,13 @@ export default function UnidadPage(){
         {/* ── HISTORIAL ── */}
         {tab==='historial'&&(
           <div>
+            {historial.length>0&&(
+              <div className="flex justify-end mb-3">
+                <button onClick={exportarHistorial} className="flex items-center gap-1.5 text-sm bg-white border border-stone-200 rounded-xl px-3 py-2 text-stone-500 hover:border-amber-300 hover:text-amber-700 transition-colors shadow-sm">
+                  📥 Exportar CSV
+                </button>
+              </div>
+            )}
             {historial.length===0?(
               <div className="text-center py-16 text-stone-400">
                 <div className="text-5xl mb-3">📋</div>
