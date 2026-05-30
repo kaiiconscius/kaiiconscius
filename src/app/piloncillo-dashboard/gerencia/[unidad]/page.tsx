@@ -26,6 +26,8 @@ const PERIODOS = (()=>{ const p:string[]=[],now=new Date(); for(let i=0;i<6;i++)
 const D0 = {productividad:75,ingresoReal:0,metaMensual:0,eficienciaOperativa:75,controlInsumos:75};
 const C0 = {comunicacion:75,seguimiento:75,gestionProyectos:75};
 const I0 = {faltasInjustificadas:0,retardosSinAvisar:0,vacacionesSinComunicar:0,descansosSinComunicar:0};
+const APERTURA_ITEMS=['Limpieza general del local','Mise en place completo','Equipos encendidos y funcionando','Caja inicial contada','Personal completo y a tiempo','Temperatura de refrigeración verificada','Uniformes del equipo completos'];
+const CIERRE_ITEMS=['Corte de caja realizado','Cocina limpia y desinfectada','Alimentos refrigerados correctamente','Equipos apagados o en standby','Local limpio y ordenado','Puertas y accesos asegurados','Reporte del día registrado'];
 
 function calcScores(d:EvalDesempeno,c:EvalComportamiento,i:EvalIncidencias){
   const mp=d.metaMensual>0?Math.min(100,(d.ingresoReal/d.metaMensual)*100):d.productividad;
@@ -139,7 +141,7 @@ export default function UnidadPage(){
   const params=useParams();
   const unidad=params.unidad as string;
   const info=UNIDADES[unidad];
-  const [tab,setTab]=useState<'evaluar'|'evolucion'|'historial'>('evaluar');
+  const [tab,setTab]=useState<'evaluar'|'evolucion'|'historial'|'checklist'>('evaluar');
   const [historial,setHistorial]=useState<EvalGerencia[]>([]);
   const [saving,setSaving]=useState(false);
   const [saved,setSaved]=useState(false);
@@ -150,6 +152,12 @@ export default function UnidadPage(){
   const [evaluadoPor,setEvaluadoPor]=useState('');
   const [notas,setNotas]=useState('');
   const [metaFijada,setMetaFijada]=useState<number|null>(null);
+  const [checkFecha,setCheckFecha]=useState(()=>new Date().toISOString().slice(0,10));
+  const [apertura,setApertura]=useState(APERTURA_ITEMS.map(label=>({label,done:false})));
+  const [cierre,setCierre]=useState(CIERRE_ITEMS.map(label=>({label,done:false})));
+  const [savingCheck,setSavingCheck]=useState(false);
+  const [savedCheck,setSavedCheck]=useState(false);
+  const [checkHistorial,setCheckHistorial]=useState<{fecha:string;apertPct:number;cierrePct:number}[]>([]);
 
   useEffect(()=>{
     if(typeof window!=='undefined'&&!sessionStorage.getItem(`pillo_gerencia_${unidad}`)){
@@ -191,6 +199,31 @@ export default function UnidadPage(){
 
   if(!info) return null;
 
+  const loadChecklist=useCallback(async()=>{
+    try{
+      const res=await fetch(`/api/piloncillo/checklists?unidad=${unidad}&fecha=${checkFecha}`);
+      const json=await res.json();
+      if(json.apertura) setApertura(APERTURA_ITEMS.map((label,i)=>({label,done:json.apertura[i]||false})));
+      else setApertura(APERTURA_ITEMS.map(label=>({label,done:false})));
+      if(json.cierre) setCierre(CIERRE_ITEMS.map((label,i)=>({label,done:json.cierre[i]||false})));
+      else setCierre(CIERRE_ITEMS.map(label=>({label,done:false})));
+      setCheckHistorial(json.historial||[]);
+    }catch{}
+  },[unidad,checkFecha]);
+
+  const saveChecklist=async()=>{
+    setSavingCheck(true);
+    try{
+      const apertPct=Math.round((apertura.filter(i=>i.done).length/apertura.length)*100);
+      const cierrePct=Math.round((cierre.filter(i=>i.done).length/cierre.length)*100);
+      const res=await fetch('/api/piloncillo/checklists',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({unidad,fecha:checkFecha,apertura:apertura.map(i=>i.done),cierre:cierre.map(i=>i.done),apertPct,cierrePct})});
+      if(res.ok){setSavedCheck(true);setTimeout(()=>setSavedCheck(false),3000);loadChecklist();}
+    }finally{setSavingCheck(false);}
+  };
+
+  useEffect(()=>{if(tab==='checklist') loadChecklist();},[tab,loadChecklist]);
+
   const exportarHistorial=()=>{
     if(!historial.length) return;
     const headers='Unidad,Período,Score,Desempeño,Comportamiento,Incidencias,Ingresos,Meta,% Meta,Evaluado por,Notas';
@@ -231,7 +264,7 @@ export default function UnidadPage(){
       </header>
 
       <div className="bg-white border-b border-stone-100 px-4 flex gap-1 sticky top-0 z-10">
-        {([['evaluar','📝 Evaluar'],['evolucion','📈 Evolución'],['historial','📋 Historial']] as const).map(([t,label])=>(
+        {([['evaluar','📝 Evaluar'],['evolucion','📈 Evolución'],['historial','📋 Historial'],['checklist','✅ Checklist']] as const).map(([t,label])=>(
           <button key={t} onClick={()=>setTab(t)}
             className={`px-4 py-3.5 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap ${
               tab===t?'border-amber-500 text-amber-700':'border-transparent text-stone-400 hover:text-stone-600'
@@ -391,6 +424,112 @@ export default function UnidadPage(){
             )}
           </div>
         )}
+        {/* ── CHECKLIST ── */}
+        {tab==='checklist'&&(()=>{
+          const apertDone=apertura.filter(i=>i.done).length;
+          const cierreDone=cierre.filter(i=>i.done).length;
+          const apertPct=Math.round((apertDone/apertura.length)*100);
+          const cierrePct=Math.round((cierreDone/cierre.length)*100);
+          const pctColor=(p:number)=>p===100?'text-emerald-500':p>0?'text-amber-500':'text-stone-300';
+          const barColor=(p:number)=>p===100?'bg-emerald-400':p>0?'bg-amber-400':'bg-stone-200';
+          return(
+            <div className="space-y-5">
+              {/* Fecha */}
+              <div className="flex items-center gap-3 bg-white rounded-2xl p-4 shadow-sm border border-stone-100">
+                <div className="text-xl">📅</div>
+                <div className="flex-1">
+                  <div className="text-xs text-stone-400 font-medium">Fecha del checklist</div>
+                  <input type="date" value={checkFecha} onChange={e=>{setCheckFecha(e.target.value);setApertura(APERTURA_ITEMS.map(l=>({label:l,done:false})));setCierre(CIERRE_ITEMS.map(l=>({label:l,done:false})));}}
+                    className="font-bold text-stone-700 bg-transparent focus:outline-none mt-0.5 text-sm"/>
+                </div>
+              </div>
+
+              {/* Progreso resumen */}
+              <div className="grid grid-cols-2 gap-3">
+                {[{label:'🌅 Apertura',pct:apertPct,done:apertDone,total:apertura.length},{label:'🌙 Cierre',pct:cierrePct,done:cierreDone,total:cierre.length}].map(s=>(
+                  <div key={s.label} className="bg-white rounded-2xl p-4 text-center shadow-sm border border-stone-100">
+                    <div className={`text-3xl font-black ${pctColor(s.pct)}`}>{s.pct}%</div>
+                    <div className="text-xs text-stone-400 mt-1">{s.label}</div>
+                    <div className="text-xs text-stone-300 mt-0.5">{s.done}/{s.total} ítems</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Apertura */}
+              <section>
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="font-bold text-stone-700 text-sm flex items-center gap-2">
+                    <span className="w-7 h-7 bg-orange-100 text-orange-600 rounded-lg flex items-center justify-center text-base">🌅</span>APERTURA
+                  </h2>
+                  <span className={`text-sm font-bold ${apertPct===100?'text-emerald-600':'text-amber-600'}`}>{apertDone}/{apertura.length}</span>
+                </div>
+                <div className="space-y-2">
+                  {apertura.map((item,idx)=>(
+                    <button key={idx} onClick={()=>setApertura(a=>a.map((x,i)=>i===idx?{...x,done:!x.done}:x))}
+                      className={`w-full flex items-center gap-3 p-3.5 rounded-xl border-2 text-left transition-all active:scale-[0.98] ${item.done?'bg-emerald-50 border-emerald-200':'bg-white border-stone-100 hover:border-stone-200'}`}>
+                      <div className={`w-5 h-5 rounded-lg flex items-center justify-center flex-shrink-0 transition-all ${item.done?'bg-emerald-500':'border-2 border-stone-300'}`}>
+                        {item.done&&<span className="text-white text-xs font-black">✓</span>}
+                      </div>
+                      <span className={`text-sm ${item.done?'text-emerald-700 font-medium line-through decoration-emerald-300':'text-stone-600'}`}>{item.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </section>
+
+              {/* Cierre */}
+              <section>
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="font-bold text-stone-700 text-sm flex items-center gap-2">
+                    <span className="w-7 h-7 bg-indigo-100 text-indigo-600 rounded-lg flex items-center justify-center text-base">🌙</span>CIERRE
+                  </h2>
+                  <span className={`text-sm font-bold ${cierrePct===100?'text-emerald-600':'text-amber-600'}`}>{cierreDone}/{cierre.length}</span>
+                </div>
+                <div className="space-y-2">
+                  {cierre.map((item,idx)=>(
+                    <button key={idx} onClick={()=>setCierre(a=>a.map((x,i)=>i===idx?{...x,done:!x.done}:x))}
+                      className={`w-full flex items-center gap-3 p-3.5 rounded-xl border-2 text-left transition-all active:scale-[0.98] ${item.done?'bg-emerald-50 border-emerald-200':'bg-white border-stone-100 hover:border-stone-200'}`}>
+                      <div className={`w-5 h-5 rounded-lg flex items-center justify-center flex-shrink-0 transition-all ${item.done?'bg-emerald-500':'border-2 border-stone-300'}`}>
+                        {item.done&&<span className="text-white text-xs font-black">✓</span>}
+                      </div>
+                      <span className={`text-sm ${item.done?'text-emerald-700 font-medium line-through decoration-emerald-300':'text-stone-600'}`}>{item.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </section>
+
+              {/* Guardar */}
+              <button onClick={saveChecklist} disabled={savingCheck}
+                className={`w-full py-4 rounded-2xl font-bold text-white transition-all ${savedCheck?'bg-emerald-500':`bg-gradient-to-r ${info.bg} hover:scale-[1.02] active:scale-95`} disabled:opacity-50`}>
+                {savingCheck?'Guardando...' : savedCheck?'✅ Checklist guardado' : `💾 Guardar · ${checkFecha}`}
+              </button>
+
+              {/* Historial últimos días */}
+              {checkHistorial.length>0&&(
+                <div>
+                  <h3 className="text-xs font-semibold text-stone-400 uppercase tracking-wider mb-3">Últimos días</h3>
+                  <div className="space-y-2">
+                    {checkHistorial.slice(0,10).map(h=>(
+                      <div key={h.fecha} className="bg-white rounded-xl p-3 flex items-center gap-3 shadow-sm border border-stone-100">
+                        <div className="text-xs text-stone-400 font-medium w-16">{h.fecha.slice(5)}</div>
+                        <div className="flex-1 space-y-1.5">
+                          {[{label:'🌅',pct:h.apertPct},{label:'🌙',pct:h.cierrePct}].map(s=>(
+                            <div key={s.label} className="flex items-center gap-2">
+                              <span className="text-xs w-5">{s.label}</span>
+                              <div className="flex-1 h-2 bg-stone-100 rounded-full overflow-hidden">
+                                <div className={`h-full rounded-full transition-all ${barColor(s.pct)}`} style={{width:`${s.pct}%`}}/>
+                              </div>
+                              <span className={`text-xs font-bold w-8 text-right ${pctColor(s.pct)}`}>{s.pct}%</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
       </main>
     </div>
   );
