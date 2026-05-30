@@ -4,11 +4,12 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 const UNIDADES = [
-  { id: 'la-cruz',            nombre: 'La Cruz',           emoji: '☕', bg: 'from-amber-600 to-amber-500' },
-  { id: 'oaxaca-manana',      nombre: 'Oaxaca Mañana',     emoji: '🌅', bg: 'from-orange-500 to-orange-400' },
-  { id: 'oaxaca-vespertino',  nombre: 'Oaxaca Vespertino', emoji: '🌇', bg: 'from-rose-600 to-rose-500' },
-  { id: 'matriz-cafe',        nombre: 'Matriz Café',       emoji: '🏠', bg: 'from-stone-600 to-stone-500' },
-  { id: 'panaderia',          nombre: 'Panadería',         emoji: '🥐', bg: 'from-yellow-600 to-yellow-500' },
+  { id: 'la-cruz',           nombre: 'La Cruz',           emoji: '☕', bg: 'from-amber-600 to-amber-500' },
+  { id: 'oaxaca-manana',     nombre: 'Oaxaca Mañana',     emoji: '🌅', bg: 'from-orange-500 to-orange-400' },
+  { id: 'oaxaca-vespertino', nombre: 'Oaxaca Vespertino', emoji: '🌇', bg: 'from-rose-600 to-rose-500' },
+  { id: 'ixtlan-del-rio',    nombre: 'Ixtlán del Río',    emoji: '🏔️', bg: 'from-teal-600 to-teal-500' },
+  { id: 'matriz-cafe',       nombre: 'Matriz Café',       emoji: '🏠', bg: 'from-stone-600 to-stone-500' },
+  { id: 'panaderia',         nombre: 'Panadería',         emoji: '🥐', bg: 'from-yellow-600 to-yellow-500' },
 ];
 
 export default function GerenciaHubPage() {

@@ -14,11 +14,12 @@ interface EvalLatest {
 }
 
 const UNIDADES = [
-  { id: 'la-cruz',            nombre: 'La Cruz',           emoji: '☕', color: 'from-amber-500 to-amber-400' },
-  { id: 'oaxaca-manana',      nombre: 'Oaxaca Mañana',     emoji: '🌅', color: 'from-orange-500 to-orange-400' },
-  { id: 'oaxaca-vespertino',  nombre: 'Oaxaca Vespertino', emoji: '🌇', color: 'from-rose-500 to-rose-400' },
-  { id: 'matriz-cafe',        nombre: 'Matriz Café',       emoji: '🏠', color: 'from-stone-500 to-stone-400' },
-  { id: 'panaderia',          nombre: 'Panadería',         emoji: '🥐', color: 'from-yellow-500 to-yellow-400' },
+  { id: 'la-cruz',           nombre: 'La Cruz',           emoji: '☕', color: 'from-amber-500 to-amber-400' },
+  { id: 'oaxaca-manana',     nombre: 'Oaxaca Mañana',     emoji: '🌅', color: 'from-orange-500 to-orange-400' },
+  { id: 'oaxaca-vespertino', nombre: 'Oaxaca Vespertino', emoji: '🌇', color: 'from-rose-500 to-rose-400' },
+  { id: 'ixtlan-del-rio',    nombre: 'Ixtlán del Río',    emoji: '🏔️', color: 'from-teal-500 to-teal-400' },
+  { id: 'matriz-cafe',       nombre: 'Matriz Café',       emoji: '🏠', color: 'from-stone-500 to-stone-400' },
+  { id: 'panaderia',         nombre: 'Panadería',         emoji: '🥐', color: 'from-yellow-500 to-yellow-400' },
 ];
 
 const PERIODOS = (() => {
@@ -87,13 +88,16 @@ export default function OverviewPage() {
             <button onClick={() => router.push('/piloncillo-dashboard')} className="text-amber-300/70 text-lg hover:text-white">←</button>
             <div>
               <h1 className="font-bold text-xl">Vista General</h1>
-              <p className="text-amber-300/60 text-xs">Solo lectura · Sin modificaciones</p>
+              <p className="text-amber-300/60 text-xs">6 unidades · Solo lectura</p>
             </div>
           </div>
           {allScores.length > 0 && (
             <div className="bg-white/10 rounded-2xl px-5 py-3 flex items-center justify-between">
-              <span className="text-amber-200/80 text-sm">Promedio {UNIDADES.length} unidades</span>
-              <span className={`text-3xl font-black ${scoreColor(promedio)}`} style={{color: 'white'}}>{promedio}</span>
+              <div>
+                <div className="text-white/60 text-xs">Promedio {allScores.length} unidades evaluadas</div>
+                <div className="text-white/80 text-xs mt-0.5">{periodo}</div>
+              </div>
+              <span className={`text-4xl font-black ${scoreColor(promedio)}`} style={{color:'white'}}>{promedio}</span>
             </div>
           )}
         </div>
@@ -122,7 +126,7 @@ export default function OverviewPage() {
                 return (
                   <div key={u.id} className={`bg-white rounded-2xl p-5 shadow-sm border-2 ${e ? scoreBorder(e.score) : 'border-stone-100'}`}>
                     <div className="flex items-center gap-4">
-                      <div className={`w-13 h-13 w-12 h-12 bg-gradient-to-br ${u.color} rounded-xl flex items-center justify-center text-xl flex-shrink-0`}>
+                      <div className={`w-12 h-12 bg-gradient-to-br ${u.color} rounded-xl flex items-center justify-center text-xl flex-shrink-0`}>
                         {u.emoji}
                       </div>
                       <div className="flex-1 min-w-0">
@@ -153,7 +157,7 @@ export default function OverviewPage() {
                             )}
                           </>
                         ) : (
-                          <div className="text-xs text-stone-300 mt-1">Sin evaluación en {periodo}</div>
+                          <div className="text-xs text-stone-300 mt-1">Sin evaluación este período</div>
                         )}
                       </div>
                       {e && (
@@ -165,7 +169,7 @@ export default function OverviewPage() {
               })}
           </div>
         )}
-        <p className="text-center text-xs text-stone-300 mt-8 pb-8">Vista de solo lectura · No se pueden modificar datos desde aquí</p>
+        <p className="text-center text-xs text-stone-300 mt-8 pb-8">Solo lectura · No se pueden modificar datos desde aquí</p>
       </main>
     </div>
   );

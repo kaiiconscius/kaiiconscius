@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 
-// ─── Types ───────────────────────────────────────────────────────────────────
 interface EvalDesempeno {
   productividad: number;
   ingresoReal: number;
@@ -38,13 +37,13 @@ interface EvalGerencia {
   createdAt: string;
 }
 
-// ─── Constants ───────────────────────────────────────────────────────────────
 const UNIDADES: Record<string, { nombre: string; emoji: string; bg: string }> = {
-  'la-cruz':            { nombre: 'La Cruz',           emoji: '☕', bg: 'from-amber-600 to-amber-500' },
-  'oaxaca-manana':      { nombre: 'Oaxaca Mañana',     emoji: '🌅', bg: 'from-orange-500 to-orange-400' },
-  'oaxaca-vespertino':  { nombre: 'Oaxaca Vespertino', emoji: '🌇', bg: 'from-rose-600 to-rose-500' },
-  'matriz-cafe':        { nombre: 'Matriz Café',       emoji: '🏠', bg: 'from-stone-600 to-stone-500' },
-  'panaderia':          { nombre: 'Panadería',         emoji: '🥐', bg: 'from-yellow-600 to-yellow-500' },
+  'la-cruz':           { nombre: 'La Cruz',           emoji: '☕', bg: 'from-amber-600 to-amber-500' },
+  'oaxaca-manana':     { nombre: 'Oaxaca Mañana',     emoji: '🌅', bg: 'from-orange-500 to-orange-400' },
+  'oaxaca-vespertino': { nombre: 'Oaxaca Vespertino', emoji: '🌇', bg: 'from-rose-600 to-rose-500' },
+  'ixtlan-del-rio':    { nombre: 'Ixtlán del Río',    emoji: '🏔️', bg: 'from-teal-600 to-teal-500' },
+  'matriz-cafe':       { nombre: 'Matriz Café',       emoji: '🏠', bg: 'from-stone-600 to-stone-500' },
+  'panaderia':         { nombre: 'Panadería',         emoji: '🥐', bg: 'from-yellow-600 to-yellow-500' },
 };
 
 const PERIODOS = (() => {
@@ -57,11 +56,10 @@ const PERIODOS = (() => {
   return p;
 })();
 
-const D0: EvalDesempeno     = { productividad: 75, ingresoReal: 0, metaMensual: 0, eficienciaOperativa: 75, controlInsumos: 75 };
-const C0: EvalComportamiento = { comunicacion: 75, seguimiento: 75, gestionProyectos: 75 };
-const I0: EvalIncidencias    = { faltasInjustificadas: 0, retardosSinAvisar: 0, vacacionesSinComunicar: 0, descansosSinComunicar: 0 };
+const D0: EvalDesempeno      = { productividad: 75, ingresoReal: 0, metaMensual: 0, eficienciaOperativa: 75, controlInsumos: 75 };
+const C0: EvalComportamiento  = { comunicacion: 75, seguimiento: 75, gestionProyectos: 75 };
+const I0: EvalIncidencias     = { faltasInjustificadas: 0, retardosSinAvisar: 0, vacacionesSinComunicar: 0, descansosSinComunicar: 0 };
 
-// ─── Score calculation ───────────────────────────────────────────────────────
 function calcScores(d: EvalDesempeno, c: EvalComportamiento, i: EvalIncidencias) {
   const meta_pct = d.metaMensual > 0 ? Math.min(100, (d.ingresoReal / d.metaMensual) * 100) : d.productividad;
   const d_avg = (d.productividad + meta_pct + d.eficienciaOperativa + d.controlInsumos) / 4;
@@ -70,9 +68,8 @@ function calcScores(d: EvalDesempeno, c: EvalComportamiento, i: EvalIncidencias)
   const comportamiento_score = c_avg * 0.3;
   const deductions = i.faltasInjustificadas * 4 + i.retardosSinAvisar * 2 + i.vacacionesSinComunicar * 4 + i.descansosSinComunicar * 2;
   const incidencias_score = Math.max(0, 20 - deductions);
-  const score = Math.round(desempeno_score + comportamiento_score + incidencias_score);
   return {
-    score,
+    score:                Math.round(desempeno_score + comportamiento_score + incidencias_score),
     desempeno_score:      Math.round(desempeno_score * 10) / 10,
     comportamiento_score: Math.round(comportamiento_score * 10) / 10,
     incidencias_score:    Math.round(incidencias_score * 10) / 10,
@@ -90,10 +87,7 @@ function fmt(n: number) {
   return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(n);
 }
 
-// ─── Sub-components ──────────────────────────────────────────────────────────
-function Slider({
-  label, desc, value, onChange,
-}: { label: string; desc: string; value: number; onChange: (v: number) => void }) {
+function Slider({ label, desc, value, onChange }: { label: string; desc: string; value: number; onChange: (v: number) => void }) {
   return (
     <div className="bg-white rounded-2xl p-4 shadow-sm border border-stone-100">
       <div className="flex justify-between items-start mb-3">
@@ -105,27 +99,17 @@ function Slider({
       </div>
       <div className="relative">
         <div className="h-2.5 bg-stone-100 rounded-full overflow-hidden mb-1">
-          <div
-            className={`h-full rounded-full transition-all ${value >= 80 ? 'bg-emerald-400' : value >= 60 ? 'bg-amber-400' : 'bg-red-400'}`}
-            style={{ width: `${value}%` }}
-          />
+          <div className={`h-full rounded-full transition-all ${value >= 80 ? 'bg-emerald-400' : value >= 60 ? 'bg-amber-400' : 'bg-red-400'}`} style={{ width: `${value}%` }} />
         </div>
-        <input
-          type="range" min={0} max={100} value={value}
-          onChange={e => onChange(Number(e.target.value))}
-          className="w-full h-2.5 absolute top-0 opacity-0 cursor-pointer"
-        />
+        <input type="range" min={0} max={100} value={value} onChange={e => onChange(Number(e.target.value))}
+          className="w-full h-2.5 absolute top-0 opacity-0 cursor-pointer" />
       </div>
-      <div className="flex justify-between text-xs text-stone-300 mt-0.5">
-        <span>Bajo</span><span>Medio</span><span>Alto</span>
-      </div>
+      <div className="flex justify-between text-xs text-stone-300 mt-0.5"><span>Bajo</span><span>Medio</span><span>Alto</span></div>
     </div>
   );
 }
 
-function Counter({
-  label, desc, value, onChange, pts,
-}: { label: string; desc: string; value: number; onChange: (v: number) => void; pts: number }) {
+function Counter({ label, desc, value, onChange, pts }: { label: string; desc: string; value: number; onChange: (v: number) => void; pts: number }) {
   return (
     <div className="bg-white rounded-2xl p-4 shadow-sm border border-stone-100">
       <div className="flex items-center gap-3">
@@ -135,18 +119,15 @@ function Counter({
           <div className="text-xs text-red-400 font-medium mt-1">−{pts} pts por ocurrencia</div>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
-          <button onClick={() => onChange(Math.max(0, value - 1))}
-            className="w-9 h-9 rounded-xl bg-stone-100 text-stone-500 font-bold text-lg hover:bg-stone-200 flex items-center justify-center">−</button>
+          <button onClick={() => onChange(Math.max(0, value - 1))} className="w-9 h-9 rounded-xl bg-stone-100 text-stone-500 font-bold text-lg hover:bg-stone-200 flex items-center justify-center">−</button>
           <span className={`text-xl font-black w-7 text-center ${value > 0 ? 'text-red-500' : 'text-stone-300'}`}>{value}</span>
-          <button onClick={() => onChange(value + 1)}
-            className="w-9 h-9 rounded-xl bg-red-50 text-red-500 font-bold text-lg hover:bg-red-100 flex items-center justify-center">+</button>
+          <button onClick={() => onChange(value + 1)} className="w-9 h-9 rounded-xl bg-red-50 text-red-500 font-bold text-lg hover:bg-red-100 flex items-center justify-center">+</button>
         </div>
       </div>
     </div>
   );
 }
 
-// ─── Main component ───────────────────────────────────────────────────────────
 export default function UnidadPage() {
   const router = useRouter();
   const params = useParams();
@@ -177,9 +158,7 @@ export default function UnidadPage() {
     setHistorial(json.data || []);
   }, [unidad]);
 
-  useEffect(() => {
-    if (tab === 'historial') fetchHistorial();
-  }, [tab, fetchHistorial]);
+  useEffect(() => { if (tab === 'historial') fetchHistorial(); }, [tab, fetchHistorial]);
 
   const scores = calcScores(d, c, i);
   const meta_pct = d.metaMensual > 0 ? Math.round((d.ingresoReal / d.metaMensual) * 100) : 0;
@@ -199,7 +178,6 @@ export default function UnidadPage() {
 
   return (
     <div className="min-h-screen bg-stone-50">
-      {/* Header */}
       <header className={`bg-gradient-to-br ${info.bg} text-white px-4 pt-10 pb-6`}>
         <div className="max-w-lg mx-auto">
           <div className="flex items-center gap-3 mb-5">
@@ -210,7 +188,6 @@ export default function UnidadPage() {
               <p className="text-white/60 text-xs">Panel de gestión</p>
             </div>
           </div>
-          {/* Live score */}
           <div className="bg-black/20 rounded-2xl p-4">
             <div className="flex items-end justify-between mb-2">
               <div className="text-white/70 text-xs font-medium">Puntuación en tiempo real</div>
@@ -234,7 +211,6 @@ export default function UnidadPage() {
         </div>
       </header>
 
-      {/* Tabs */}
       <div className="bg-white border-b border-stone-100 px-4 flex gap-1 sticky top-0 z-10">
         {(['evaluar', 'historial'] as const).map(t => (
           <button key={t} onClick={() => setTab(t)}
@@ -247,10 +223,8 @@ export default function UnidadPage() {
       </div>
 
       <main className="max-w-lg mx-auto px-4 py-5 pb-20">
-        {/* ── EVALUAR ── */}
         {tab === 'evaluar' && (
           <div className="space-y-6">
-            {/* Periodo */}
             <div className="flex items-center gap-3 bg-white rounded-2xl p-4 shadow-sm border border-stone-100">
               <div className="text-xl">📅</div>
               <div className="flex-1">
@@ -262,7 +236,6 @@ export default function UnidadPage() {
               </div>
             </div>
 
-            {/* DESEMPEÑO */}
             <section>
               <div className="flex items-center justify-between mb-3">
                 <h2 className="font-bold text-stone-700 text-sm flex items-center gap-2">
@@ -274,8 +247,6 @@ export default function UnidadPage() {
               <div className="space-y-3">
                 <Slider label="Productividad general" desc="Rendimiento y output global de la unidad"
                   value={d.productividad} onChange={v => setD(x => ({ ...x, productividad: v }))} />
-
-                {/* Meta ingresos */}
                 <div className="bg-white rounded-2xl p-4 shadow-sm border border-stone-100">
                   <div className="font-semibold text-stone-700 text-sm mb-4">Meta de ingresos del mes</div>
                   <div className="grid grid-cols-2 gap-3 mb-4">
@@ -304,9 +275,7 @@ export default function UnidadPage() {
                     <>
                       <div className="flex justify-between text-xs mb-1.5">
                         <span className="text-stone-400">{fmt(d.ingresoReal)} de {fmt(d.metaMensual)}</span>
-                        <span className={`font-bold ${meta_pct >= 100 ? 'text-emerald-600' : meta_pct >= 80 ? 'text-amber-600' : 'text-red-500'}`}>
-                          {meta_pct}% logrado
-                        </span>
+                        <span className={`font-bold ${meta_pct >= 100 ? 'text-emerald-600' : meta_pct >= 80 ? 'text-amber-600' : 'text-red-500'}`}>{meta_pct}% logrado</span>
                       </div>
                       <div className="h-3 bg-stone-100 rounded-full overflow-hidden">
                         <div className={`h-full rounded-full transition-all ${meta_pct >= 100 ? 'bg-emerald-400' : meta_pct >= 80 ? 'bg-amber-400' : 'bg-red-400'}`}
@@ -315,7 +284,6 @@ export default function UnidadPage() {
                     </>
                   )}
                 </div>
-
                 <Slider label="Eficiencia operativa" desc="Control del gasto operativo vs presupuesto mensual"
                   value={d.eficienciaOperativa} onChange={v => setD(x => ({ ...x, eficienciaOperativa: v }))} />
                 <Slider label="Control de insumos" desc="Food cost real vs objetivo · Merma y desperdicios"
@@ -323,7 +291,6 @@ export default function UnidadPage() {
               </div>
             </section>
 
-            {/* COMPORTAMIENTO */}
             <section>
               <div className="flex items-center justify-between mb-3">
                 <h2 className="font-bold text-stone-700 text-sm flex items-center gap-2">
@@ -342,7 +309,6 @@ export default function UnidadPage() {
               </div>
             </section>
 
-            {/* INCIDENCIAS */}
             <section>
               <div className="flex items-center justify-between mb-3">
                 <h2 className="font-bold text-stone-700 text-sm flex items-center gap-2">
@@ -350,8 +316,7 @@ export default function UnidadPage() {
                   INCIDENCIAS
                 </h2>
                 <span className={`text-sm font-bold ${scores.deductions > 0 ? 'text-red-500' : 'text-emerald-600'}`}>
-                  {scores.incidencias_score} / 20
-                  {scores.deductions > 0 && <span className="text-xs font-normal"> (−{scores.deductions})</span>}
+                  {scores.incidencias_score} / 20{scores.deductions > 0 && <span className="text-xs font-normal"> (−{scores.deductions})</span>}
                 </span>
               </div>
               <div className="space-y-3">
@@ -366,7 +331,6 @@ export default function UnidadPage() {
               </div>
             </section>
 
-            {/* Evaluador y notas */}
             <section className="space-y-3">
               <div className="bg-white rounded-2xl p-4 shadow-sm border border-stone-100">
                 <label className="text-xs text-stone-400 font-medium block mb-1.5">Evaluado por</label>
@@ -390,14 +354,12 @@ export default function UnidadPage() {
           </div>
         )}
 
-        {/* ── HISTORIAL ── */}
         {tab === 'historial' && (
           <div>
             {historial.length === 0 ? (
               <div className="text-center py-16 text-stone-400">
                 <div className="text-5xl mb-3">📋</div>
                 <p className="font-medium">Sin evaluaciones aún</p>
-                <p className="text-sm mt-1">Completa tu primera evaluación</p>
               </div>
             ) : (
               <div className="space-y-3">
@@ -416,8 +378,8 @@ export default function UnidadPage() {
                       <span>Asist. <strong className={e.incidencias_score < 20 ? 'text-red-500' : 'text-stone-600'}>{e.incidencias_score}</strong></span>
                     </div>
                     {e.desempeno.metaMensual > 0 && (
-                      <div className="mt-3 text-xs text-stone-400">
-                        Ingreso: {fmt(e.desempeno.ingresoReal)} / Meta: {fmt(e.desempeno.metaMensual)} ({Math.round((e.desempeno.ingresoReal / e.desempeno.metaMensual) * 100)}%)
+                      <div className="mt-2 text-xs text-stone-400">
+                        {fmt(e.desempeno.ingresoReal)} / {fmt(e.desempeno.metaMensual)} · {Math.round((e.desempeno.ingresoReal / e.desempeno.metaMensual) * 100)}%
                       </div>
                     )}
                     {e.notas && <p className="text-xs text-stone-400 italic mt-2">&ldquo;{e.notas}&rdquo;</p>}
