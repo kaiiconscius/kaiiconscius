@@ -15,16 +15,20 @@ Claude empuja archivos al repo de referencia. Codex los copia a KAII-MVP, corre 
 |------|-------|--------|
 | Landing `/piloncillo-dashboard` | Claude | ✅ Listo |
 | Vista General `/overview` | Claude | ✅ Listo |
-| Gerencias `/gerencia` + `/gerencia/[unidad]` | Claude | ✅ Listo |
-| Dirección `/direccion` | Claude | ✅ Listo (NO reemplazar) |
+| Gerencias `/gerencia` + `/gerencia/[unidad]` | Claude | ✅ Listo (gráfica evolución incluida) |
+| Dirección `/direccion` | Claude | ✅ Listo (alertas + PDF incluidos) |
+| Reporte PDF `/reporte` | Claude | ✅ Listo |
+| Operativo / Recetas `/operativo` | Claude | ✅ Listo |
 | Administración `/administracion` | **Codex** | 🔨 En construcción |
 | RRHH `/rrhh` | **Codex** | 🔨 En construcción |
-| Operativo / Recetas `/operativo` | Claude | 🔨 En construcción |
+| Panel Maestro `/kaii-master` | Claude | ✅ Listo |
 | API `auth` | Claude | ✅ Listo |
 | API `evaluaciones-gerencia` | Claude | ✅ Listo |
 | API `proveedores` | Claude | ✅ Listo |
 | API `resumen-direccion` (IA) | Claude | ✅ Listo |
-| API `recetas` | Claude | 🔨 En construcción |
+| API `recetas` | Claude | ✅ Listo |
+| API `cron/resumen-semanal` | Claude | ✅ Listo |
+| API `kaii-master/*` | Claude | ✅ Listo |
 
 **Regla de oro:** si un archivo tiene dueño, el otro NO lo reemplaza. Si necesitas cambiarlo, anótalo aquí primero.
 
@@ -40,44 +44,55 @@ Claude empuja archivos al repo de referencia. Codex los copia a KAII-MVP, corre 
 - Botón volver: flecha `←` arriba a la izquierda → `router.push('/piloncillo-dashboard')`
 - Móvil primero: `max-w-lg mx-auto`
 
-## Mapa de rutas
+## Mapa de rutas completo
 
 ```
 /piloncillo-dashboard                      Landing (Vista General + 4 secciones)
 /piloncillo-dashboard/overview             Métricas todas las unidades (sin PIN, solo lectura)
-/piloncillo-dashboard/direccion            Panel estratégico + IA + proveedores
-/piloncillo-dashboard/administracion       [Codex]
-/piloncillo-dashboard/rrhh                 [Codex]
-/piloncillo-dashboard/gerencia             Hub de unidades (selección + PIN)
-/piloncillo-dashboard/gerencia/[unidad]    Evaluación + historial por unidad
-/piloncillo-dashboard/operativo            Recetas y costeo [Claude, en construcción]
+/piloncillo-dashboard/direccion            Panel estratégico + IA + proveedores + alertas + PDF
+/piloncillo-dashboard/reporte              Reporte PDF imprimible por período
+/piloncillo-dashboard/administracion       [Codex] Tablero financiero
+/piloncillo-dashboard/rrhh                 [Codex] Talento y colaboradores
+/piloncillo-dashboard/gerencia             Hub de unidades (selección + PIN por unidad)
+/piloncillo-dashboard/gerencia/[unidad]    Evaluación + historial + gráfica evolución
+/piloncillo-dashboard/operativo            Recetas y costeo automático (food cost %)
+/kaii-master                               Panel Maestro Saúl (PIN VIP 6 dígitos)
+/kaii-master/dashboard                     Vista global multi-empresa + cron manual
 ```
 
 ## Autenticación (PINs)
 
 Todos los PINs viven en `.env.local` (NUNCA en el repo). El endpoint `/api/piloncillo/auth` recibe `{ seccion, pin }`, normaliza guiones→guion bajo, y compara contra `process.env.PILONCILLO_PIN_*`.
 
-Claves de sección esperadas:
+Variables requeridas:
 ```
-direccion, administracion, rrhh
-gerencia_la_cruz, gerencia_oaxaca_manana, gerencia_oaxaca_vespertino,
-gerencia_ixtlan_del_rio, gerencia_panaderia
+PILONCILLO_PIN_DIRECCION
+PILONCILLO_PIN_ADMINISTRACION
+PILONCILLO_PIN_RRHH
+PILONCILLO_PIN_LA_CRUZ
+PILONCILLO_PIN_OAXACA_MANANA
+PILONCILLO_PIN_OAXACA_VESPERTINO
+PILONCILLO_PIN_IXTLAN_DEL_RIO
+PILONCILLO_PIN_PANADERIA
+KAII_MASTER_PIN
 ```
-
-En el cliente, tras validar, se guarda `sessionStorage.setItem('pillo_<seccion>', '1')` y cada página protegida lo verifica al montar.
 
 ## Contrato de almacenamiento (Vercel KV con fallback en memoria)
 
-Patrón usado en todas las APIs:
 ```ts
 async function kvGet(k){ try{ const {kv}=await import('@vercel/kv'); return (await kv.get(k))||[] }catch{ return mem[k]||[] } }
 async function kvSet(k,d){ try{ const {kv}=await import('@vercel/kv'); await kv.set(k,d) }catch{ mem[k]=d } }
 ```
-Keys:
-- `piloncillo:eval_gerencia:<unidad>`
-- `piloncillo:proveedores`
-- `piloncillo:recetas`
-- `piloncillo:colaboradores:<seccion>` / `piloncillo:evaluaciones:<seccion>`
+
+Keys activas:
+```
+piloncillo:eval_gerencia:<unidad>
+piloncillo:proveedores
+piloncillo:recetas
+piloncillo:colaboradores:<seccion>
+piloncillo:evaluaciones:<seccion>
+kaii:empresas
+```
 
 ## Fórmula de evaluación de gerencias
 
@@ -86,12 +101,26 @@ Keys:
 - **Incidencias hasta −20** = 20 − (faltas×4 + retardos×2 + vacaciones×4 + descansos×2), mínimo 0
 - **Score** = redondeo(desempeño + comportamiento + incidencias)
 
-## Próximos pasos (backlog priorizado)
+## Backlog priorizado (actualizado)
 
-1. [Codex] Administración: tablero financiero por unidad, caja/bancos, cuentas por pagar
-2. [Codex] RRHH: altas/bajas, expedientes, historial de evaluaciones por colaborador
-3. [Claude] Operativo: recetas documentadas con costeo automático (food cost %, margen)
-4. [Claude] Gráfica de evolución de score por unidad (últimos 6 meses)
-5. [Claude] Alertas: score < 70 o proveedor en rojo → badge en Dirección
-6. [Ambos] Resumen IA automático semanal (cron) → correo/WhatsApp
-7. [Ambos] Multi-tenant para escalar a otras empresas
+### ✅ Completados
+- [x] Dashboard multi-sección con PINs
+- [x] Evaluación de gerencias (fórmula 50/30/-20)
+- [x] Vista General sin PIN
+- [x] Dirección PRO (resumen IA, métricas, proveedores)
+- [x] Gráfica de evolución de score (SVG, 6 meses)
+- [x] Alertas automáticas en Dirección (score < 70, proveedor rojo)
+- [x] Reporte PDF imprimible
+- [x] Módulo Operativo / Recetas con costeo automático
+- [x] Panel Maestro KAII multi-tenant
+- [x] Cron semanal IA → email HTML (Resend)
+
+### 🔨 En curso (Codex)
+- [ ] Administración: tablero financiero por unidad, caja/bancos, cuentas por pagar
+- [ ] RRHH: altas/bajas, expedientes, historial de evaluaciones por colaborador
+
+### 📋 Backlog siguiente
+- [ ] Notificaciones WhatsApp (Twilio) además de email
+- [ ] Módulo de metas mensuales por unidad (configurables)
+- [ ] Exportar evaluaciones a Excel/CSV
+- [ ] Segundo cliente multi-tenant
