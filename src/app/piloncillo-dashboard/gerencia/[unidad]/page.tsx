@@ -149,12 +149,24 @@ export default function UnidadPage(){
   const [i,setI]=useState(I0);
   const [evaluadoPor,setEvaluadoPor]=useState('');
   const [notas,setNotas]=useState('');
+  const [metaFijada,setMetaFijada]=useState<number|null>(null);
 
   useEffect(()=>{
     if(typeof window!=='undefined'&&!sessionStorage.getItem(`pillo_gerencia_${unidad}`)){
       router.push('/piloncillo-dashboard/gerencia');
     }
   },[unidad,router]);
+
+  useEffect(()=>{
+    if(!unidad) return;
+    fetch(`/api/piloncillo/metas?periodo=${periodo}&unidad=${unidad}`)
+      .then(r=>r.json())
+      .then(j=>{
+        if(j.meta!=null){setMetaFijada(j.meta);setD(x=>({...x,metaMensual:j.meta}));}
+        else{setMetaFijada(null);}
+      })
+      .catch(()=>{});
+  },[periodo,unidad]);
 
   const fetchHistorial=useCallback(async()=>{
     const res=await fetch(`/api/piloncillo/evaluaciones-gerencia?unidad=${unidad}`);
@@ -235,16 +247,27 @@ export default function UnidadPage(){
               <div className="space-y-3">
                 <Slider label="Productividad general" desc="Rendimiento y output global de la unidad" value={d.productividad} onChange={v=>setD(x=>({...x,productividad:v}))}/>
                 <div className="bg-white rounded-2xl p-4 shadow-sm border border-stone-100">
-                  <div className="font-semibold text-stone-700 text-sm mb-4">Meta de ingresos del mes</div>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="font-semibold text-stone-700 text-sm">Meta de ingresos del mes</div>
+                    {metaFijada!==null&&<span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-semibold">📌 Fijada por Dirección</span>}
+                  </div>
                   <div className="grid grid-cols-2 gap-3 mb-4">
-                    {([['ingresoReal','Ingreso real'],['metaMensual','Meta mensual']] as const).map(([k,label])=>(
-                      <div key={k}>
-                        <div className="text-xs text-stone-400 mb-1.5 font-medium">{label}</div>
-                        <div className="relative"><span className="absolute left-3 top-2.5 text-stone-400 text-sm">$</span>
-                          <input type="number" value={d[k]||''} onChange={e=>setD(x=>({...x,[k]:Number(e.target.value)}))} className="w-full border border-stone-200 rounded-xl pl-7 pr-3 py-2.5 text-sm font-bold text-stone-700 focus:outline-none focus:border-amber-400" placeholder="0"/>
+                    {(['ingresoReal','metaMensual'] as const).map(k=>{
+                      const label=k==='ingresoReal'?'Ingreso real':'Meta mensual';
+                      const isLocked=k==='metaMensual'&&metaFijada!==null;
+                      return(
+                        <div key={k}>
+                          <div className="text-xs text-stone-400 mb-1.5 font-medium">{label}</div>
+                          <div className="relative"><span className="absolute left-3 top-2.5 text-stone-400 text-sm">$</span>
+                            {isLocked?(
+                              <div className="w-full border border-amber-200 bg-amber-50 rounded-xl pl-7 pr-3 py-2.5 text-sm font-bold text-amber-700">{metaFijada.toLocaleString('es-MX')}</div>
+                            ):(
+                              <input type="number" value={d[k]||''} onChange={e=>setD(x=>({...x,[k]:Number(e.target.value)}))} className="w-full border border-stone-200 rounded-xl pl-7 pr-3 py-2.5 text-sm font-bold text-stone-700 focus:outline-none focus:border-amber-400" placeholder="0"/>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                   {d.metaMensual>0&&(
                     <>

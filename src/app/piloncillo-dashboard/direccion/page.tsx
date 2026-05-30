@@ -16,7 +16,7 @@ function fmt(n:number){return new Intl.NumberFormat('es-MX',{style:'currency',cu
 
 export default function DireccionPage(){
   const router=useRouter();
-  const [tab,setTab]=useState<'resumen'|'unidades'|'proveedores'>('resumen');
+  const [tab,setTab]=useState<'resumen'|'unidades'|'proveedores'|'metas'>('resumen');
   const [periodo,setPeriodo]=useState(PERIODOS[0]);
   const [metrics,setMetrics]=useState<Record<string,UnidadMetric|null>>({});
   const [loading,setLoading]=useState(true);
@@ -25,6 +25,9 @@ export default function DireccionPage(){
   const [proveedores,setProveedores]=useState<Proveedor[]>([]);
   const [showProvForm,setShowProvForm]=useState(false);
   const [formProv,setFormProv]=useState<Omit<Proveedor,'id'>>({nombre:'',categoria:'',estado:'verde',nota:''});
+  const [metas,setMetas]=useState<Record<string,number>>({});
+  const [savingMetas,setSavingMetas]=useState(false);
+  const [savedMetas,setSavedMetas]=useState(false);
 
   useEffect(()=>{
     if(typeof window!=='undefined'&&!sessionStorage.getItem('pillo_direccion')){
@@ -49,6 +52,7 @@ export default function DireccionPage(){
 
   useEffect(()=>{loadMetrics();},[loadMetrics]);
   useEffect(()=>{loadProveedores();},[loadProveedores]);
+  useEffect(()=>{loadMetas();},[loadMetas]);
 
   // Alertas automáticas
   const alertas:Alerta[]=[
@@ -76,6 +80,18 @@ export default function DireccionPage(){
   };
   const deleteProveedor=async(id:string)=>{
     await fetch(`/api/piloncillo/proveedores?id=${id}`,{method:'DELETE'});loadProveedores();
+  };
+
+  const loadMetas=useCallback(async()=>{
+    try{const res=await fetch(`/api/piloncillo/metas?periodo=${periodo}`);const json=await res.json();setMetas(json.unidades||{});}catch{}
+  },[periodo]);
+
+  const saveMetas=async()=>{
+    setSavingMetas(true);
+    try{
+      const res=await fetch('/api/piloncillo/metas',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({periodo,unidades:metas})});
+      if(res.ok){setSavedMetas(true);setTimeout(()=>setSavedMetas(false),3000);}
+    }finally{setSavingMetas(false);}
   };
 
   const scores=UNIDADES.map(u=>metrics[u.id]?.score).filter((s):s is number=>s!=null);
@@ -120,7 +136,7 @@ export default function DireccionPage(){
       </header>
 
       <div className="bg-white border-b border-stone-100 px-4 flex gap-1 sticky top-0 z-10">
-        {([['resumen','🤖 Resumen IA'],['unidades','🏪 Unidades'],['proveedores','🚚 Proveedores']] as const).map(([t,label])=>(
+        {([['resumen','🤖 Resumen IA'],['unidades','🏪 Unidades'],['proveedores','🚚 Proveedores'],['metas','🎯 Metas']] as const).map(([t,label])=>(
           <button key={t} onClick={()=>setTab(t)}
             className={`px-4 py-3.5 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap ${
               tab===t?'border-amber-500 text-amber-700':'border-transparent text-stone-400 hover:text-stone-600'
@@ -272,6 +288,58 @@ export default function DireccionPage(){
               })}
               {proveedores.length===0&&<div className="text-center py-12 text-stone-400"><div className="text-4xl mb-2">🚚</div><p>Sin proveedores registrados</p></div>}
             </div>
+          </div>
+        )}
+
+        {/* METAS */}
+        {tab==='metas'&&(
+          <div className="space-y-4">
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
+              <h2 className="font-bold text-stone-800 mb-1">🎯 Metas de ingresos — {periodo}</h2>
+              <p className="text-xs text-stone-500 mt-1">Fija la meta mensual de cada unidad. Los gerentes la verán pre-cargada en su evaluación y no podrán modificarla.</p>
+            </div>
+            <div className="space-y-3">
+              {UNIDADES.map(u=>{
+                const m=metrics[u.id];
+                const metaVal=metas[u.id]||0;
+                const pct=metaVal>0&&m?.ingresoReal?Math.round((m.ingresoReal/metaVal)*100):null;
+                return(
+                  <div key={u.id} className="bg-white rounded-2xl p-4 shadow-sm border border-stone-100">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className={`w-10 h-10 bg-gradient-to-br ${u.color} rounded-xl flex items-center justify-center text-lg`}>{u.emoji}</div>
+                      <div className="flex-1">
+                        <div className="font-semibold text-stone-800">{u.nombre}</div>
+                        {pct!==null&&<div className={`text-xs font-medium ${pct>=100?'text-emerald-600':pct>=80?'text-amber-600':'text-red-500'}`}>{pct}% de meta actual</div>}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-xs text-stone-400 mb-1.5 block font-medium">Meta de ingresos mensual</label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-2.5 text-stone-400 text-sm">$</span>
+                        <input type="number" value={metaVal||''} onChange={e=>setMetas(prev=>({...prev,[u.id]:Number(e.target.value)}))}
+                          className="w-full border border-stone-200 rounded-xl pl-7 pr-3 py-2.5 text-sm font-bold text-stone-700 focus:outline-none focus:border-amber-400"
+                          placeholder="Ej. 80000"/>
+                      </div>
+                      {metaVal>0&&m?.ingresoReal!=null&&(
+                        <div className="mt-2">
+                          <div className="flex justify-between text-xs mb-1">
+                            <span className="text-stone-400">{fmt(m.ingresoReal)} de {fmt(metaVal)}</span>
+                            <span className={`font-bold ${(pct||0)>=100?'text-emerald-600':(pct||0)>=80?'text-amber-600':'text-red-500'}`}>{pct}%</span>
+                          </div>
+                          <div className="h-2 bg-stone-100 rounded-full overflow-hidden">
+                            <div className={`h-full rounded-full ${(pct||0)>=100?'bg-emerald-400':(pct||0)>=80?'bg-amber-400':'bg-red-400'}`} style={{width:`${Math.min(100,pct||0)}%`}}/>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <button onClick={saveMetas} disabled={savingMetas}
+              className={`w-full py-4 rounded-2xl font-bold text-white transition-all ${savedMetas?'bg-emerald-500':'bg-amber-600 hover:bg-amber-700'} disabled:opacity-50`}>
+              {savingMetas?'Guardando...' : savedMetas?'✅ Metas guardadas para '+periodo : '💾 Guardar metas del período'}
+            </button>
           </div>
         )}
       </main>
