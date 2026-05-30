@@ -2,36 +2,13 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 const SECCIONES = [
-  {
-    id: 'direccion',
-    nombre: 'Dirección',
-    descripcion: 'Panel estratégico · Reportes globales',
-    emoji: '🏛️',
-    bg: 'from-amber-900 to-amber-800',
-  },
-  {
-    id: 'gerencia',
-    nombre: 'Gerencias',
-    descripcion: 'Equipos · Sucursales · Evaluaciones',
-    emoji: '🏪',
-    bg: 'from-amber-700 to-amber-600',
-  },
-  {
-    id: 'administracion',
-    nombre: 'Administración',
-    descripcion: 'Finanzas · Operaciones',
-    emoji: '📊',
-    bg: 'from-stone-700 to-stone-600',
-  },
-  {
-    id: 'rrhh',
-    nombre: 'RRHH',
-    descripcion: 'Talento humano · Colaboradores',
-    emoji: '👥',
-    bg: 'from-orange-700 to-orange-600',
-  },
+  { id: 'gerencia',       nombre: 'Gerencias',       desc: 'Mis unidades · Evaluación',   emoji: '🏪', bg: 'from-amber-600 to-orange-600',  href: '/piloncillo-dashboard/gerencia' },
+  { id: 'direccion',     nombre: 'Dirección',       desc: 'Panel estratégico',            emoji: '🧭', bg: 'from-stone-800 to-stone-700',   href: null },
+  { id: 'administracion',nombre: 'Administración',  desc: 'Finanzas · Operaciones',       emoji: '📊', bg: 'from-teal-700 to-teal-600',     href: null },
+  { id: 'rrhh',          nombre: 'RRHH',            desc: 'Talento · Colaboradores',      emoji: '👥', bg: 'from-rose-700 to-rose-600',     href: null },
 ];
 
 export default function PiloncilloDashboardPage() {
@@ -41,8 +18,9 @@ export default function PiloncilloDashboardPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleSelect = (id: string) => {
-    setModal(id);
+  const handleSelect = (s: typeof SECCIONES[0]) => {
+    if (s.href) { router.push(s.href); return; }
+    setModal(s.id);
     setPin('');
     setError('');
   };
@@ -62,38 +40,52 @@ export default function PiloncilloDashboardPage() {
         sessionStorage.setItem(`pillo_${modal}`, '1');
         router.push(`/piloncillo-dashboard/${modal}`);
       } else {
-        setError('PIN incorrecto. Intenta de nuevo.');
+        setError('PIN incorrecto');
         setPin('');
       }
     } catch {
-      setError('Error de red. Intenta de nuevo.');
+      setError('Error de conexión');
     } finally {
       setLoading(false);
     }
   };
 
-  const seccionActual = SECCIONES.find(s => s.id === modal);
+  const actual = SECCIONES.find(s => s.id === modal);
 
   return (
-    <div className="min-h-screen bg-amber-50">
-      <header className="bg-gradient-to-r from-amber-900 to-amber-800 text-white px-6 pt-12 pb-8">
+    <div className="min-h-screen bg-stone-50">
+      <header className="bg-gradient-to-br from-stone-900 via-amber-950 to-stone-900 text-white px-6 pt-12 pb-10">
         <div className="max-w-lg mx-auto">
-          <div className="text-4xl mb-2">🍬</div>
-          <h1 className="text-3xl font-bold">Piloncillo</h1>
-          <p className="text-amber-200 text-sm mt-1">Selecciona tu área de acceso</p>
+          <div className="text-5xl mb-3">🍬</div>
+          <h1 className="text-3xl font-bold tracking-tight">Piloncillo</h1>
+          <p className="text-amber-300/70 text-sm mt-1">Sistema de gestión de equipos</p>
         </div>
       </header>
 
-      <main className="max-w-lg mx-auto px-4 py-6 grid grid-cols-2 gap-4">
+      <div className="max-w-lg mx-auto px-4 -mt-4 mb-4">
+        <Link
+          href="/piloncillo-dashboard/overview"
+          className="flex items-center gap-4 bg-white border-2 border-amber-100 rounded-2xl p-4 shadow-sm hover:border-amber-300 hover:shadow-md transition-all"
+        >
+          <div className="w-12 h-12 bg-amber-50 rounded-xl flex items-center justify-center text-2xl">📈</div>
+          <div className="flex-1">
+            <div className="font-bold text-stone-800">Vista General</div>
+            <div className="text-xs text-stone-400 mt-0.5">Todas las unidades · Solo lectura · Sin PIN</div>
+          </div>
+          <div className="text-amber-400 text-xl">→</div>
+        </Link>
+      </div>
+
+      <main className="max-w-lg mx-auto px-4 pb-8 grid grid-cols-2 gap-3">
         {SECCIONES.map(s => (
           <button
             key={s.id}
-            onClick={() => handleSelect(s.id)}
-            className={`bg-gradient-to-br ${s.bg} text-white rounded-2xl p-5 text-left hover:scale-105 transition-transform shadow-lg active:scale-95`}
+            onClick={() => handleSelect(s)}
+            className={`bg-gradient-to-br ${s.bg} text-white rounded-2xl p-5 text-left hover:scale-[1.03] active:scale-95 transition-all shadow-md`}
           >
             <div className="text-3xl mb-3">{s.emoji}</div>
             <div className="font-bold text-base leading-tight">{s.nombre}</div>
-            <div className="text-white/70 text-xs mt-1 leading-snug">{s.descripcion}</div>
+            <div className="text-white/60 text-xs mt-1">{s.desc}</div>
           </button>
         ))}
       </main>
@@ -103,56 +95,33 @@ export default function PiloncilloDashboardPage() {
           className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-4"
           onClick={() => setModal(null)}
         >
-          <div
-            className="bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl"
-            onClick={e => e.stopPropagation()}
-          >
+          <div className="bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl" onClick={e => e.stopPropagation()}>
             <div className="text-center mb-6">
-              <div className="text-4xl mb-2">{seccionActual?.emoji}</div>
-              <h2 className="text-xl font-bold text-gray-800">{seccionActual?.nombre}</h2>
-              <p className="text-gray-400 text-sm mt-1">Ingresa tu PIN de acceso</p>
+              <div className="text-4xl mb-2">{actual?.emoji}</div>
+              <h2 className="text-xl font-bold text-stone-800">{actual?.nombre}</h2>
+              <p className="text-stone-400 text-sm mt-1">PIN de acceso</p>
             </div>
-
-            <div className="flex justify-center gap-3 mb-4">
-              {[0, 1, 2, 3].map(i => (
-                <div
-                  key={i}
-                  className={`w-4 h-4 rounded-full transition-colors ${
-                    pin.length > i ? 'bg-amber-700' : 'bg-gray-200'
-                  }`}
-                />
+            <div className="flex justify-center gap-3 mb-5">
+              {[0,1,2,3].map(i => (
+                <div key={i} className={`w-3.5 h-3.5 rounded-full transition-all ${pin.length > i ? 'bg-amber-600 scale-110' : 'bg-stone-200'}`} />
               ))}
             </div>
-
             <input
-              type="password"
-              inputMode="numeric"
-              maxLength={6}
+              type="password" inputMode="numeric" maxLength={6}
               value={pin}
               onChange={e => setPin(e.target.value.replace(/\D/g, ''))}
               onKeyDown={e => e.key === 'Enter' && handleValidar()}
-              className="w-full border-2 border-amber-200 rounded-xl px-4 py-3 text-center text-xl font-mono tracking-[0.5em] focus:outline-none focus:border-amber-500 bg-amber-50"
+              className="w-full border-2 border-stone-200 rounded-2xl px-4 py-3.5 text-center text-xl font-mono tracking-[0.6em] focus:outline-none focus:border-amber-400 bg-stone-50"
               autoFocus
             />
-
-            {error && (
-              <p className="text-red-500 text-sm text-center mt-3 font-medium">{error}</p>
-            )}
-
+            {error && <p className="text-red-500 text-sm text-center mt-3">{error}</p>}
             <div className="flex gap-3 mt-6">
-              <button
-                onClick={() => setModal(null)}
-                className="flex-1 py-3 rounded-xl border-2 border-gray-200 text-gray-500 font-medium hover:bg-gray-50"
-              >
-                Cancelar
-              </button>
+              <button onClick={() => setModal(null)} className="flex-1 py-3 rounded-xl border-2 border-stone-200 text-stone-500 font-medium">Cancelar</button>
               <button
                 onClick={handleValidar}
                 disabled={pin.length < 4 || loading}
-                className="flex-1 py-3 rounded-xl bg-amber-700 text-white font-bold hover:bg-amber-800 disabled:opacity-40 transition-colors"
-              >
-                {loading ? '...' : 'Entrar →'}
-              </button>
+                className="flex-1 py-3 rounded-xl bg-amber-600 text-white font-bold hover:bg-amber-700 disabled:opacity-40"
+              >{loading ? '...' : 'Entrar →'}</button>
             </div>
           </div>
         </div>
