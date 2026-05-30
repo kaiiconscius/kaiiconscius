@@ -47,6 +47,28 @@ async function generateSummary(dataStr: string): Promise<string> {
   return (json.content?.[0]?.text as string) || 'Sin resumen disponible.';
 }
 
+async function sendWhatsApp(to: string, body: string): Promise<boolean> {
+  const accountSid = process.env.TWILIO_ACCOUNT_SID;
+  const authToken = process.env.TWILIO_AUTH_TOKEN;
+  const fromNumber = process.env.TWILIO_WHATSAPP_FROM || 'whatsapp:+14155238886';
+  if (!accountSid || !authToken) {
+    console.log('[cron] Twilio no configurado — WhatsApp omitido');
+    return false;
+  }
+  const toWA = to.startsWith('whatsapp:') ? to : `whatsapp:${to}`;
+  const url = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString('base64')}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({ From: fromNumber, To: toWA, Body: body }).toString(),
+  });
+  if (!res.ok) console.error('[cron] Twilio error:', await res.text());
+  return res.ok;
+}
+
 async function sendEmail(to: string, subject: string, html: string): Promise<boolean> {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
@@ -212,6 +234,33 @@ ${proveedores.filter((p: any) => p.estado === 'rojo').map((p: any) => `  🔴 Pr
     html
   );
 
+  // WhatsApp — mensaje compacto con los KPIs clave
+  const alertasActivas = withData.filter(u => u.eval.scoreTotal < 70);
+  const waBody = [
+    `📊 *Resumen Semanal Piloncillo*`,
+    `📅 ${reportDate}`,
+    ``,
+    `🏆 Score global: *${avgScore}/100*`,
+    `💰 Ingresos: *$${Math.round(ingresoReal / 1000)}k* (${pctMeta}% de meta)`,
+    ``,
+    `📍 *Unidades:*`,
+    ...withData.sort((a, b) => b.eval.scoreTotal - a.eval.scoreTotal).map(u => {
+      const s = u.eval.scoreTotal;
+      const ico = s >= 80 ? '🟢' : s >= 60 ? '🟡' : '🔴';
+      return `${ico} ${u.nombre}: ${s}/100`;
+    }),
+    ...(alertasActivas.length > 0 ? [
+      ``,
+      `⚠️ *Alertas (${alertasActivas.length}):*`,
+      ...alertasActivas.map(u => `• ${u.nombre}: score ${u.eval.scoreTotal}/100`),
+    ] : [``, `✅ Sin alertas críticas`]),
+    ``,
+    `_KAII · Sistema de Gestión Piloncillo_`,
+  ].join('\n');
+
+  const waNumber = process.env.WHATSAPP_TO;
+  const waSent = waNumber ? await sendWhatsApp(waNumber, waBody) : false;
+
   return NextResponse.json({
     ok: true,
     periodo: currentPeriod,
@@ -223,5 +272,7 @@ ${proveedores.filter((p: any) => p.estado === 'rojo').map((p: any) => `  🔴 Pr
     summaryLength: summary.length,
     emailSent,
     emailTo: reportEmail,
+    waSent,
+    waTo: waNumber || null,
   });
 }
