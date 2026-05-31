@@ -16,7 +16,7 @@ function fmt(n:number){return new Intl.NumberFormat('es-MX',{style:'currency',cu
 
 export default function DireccionPage(){
   const router=useRouter();
-  const [tab,setTab]=useState<'resumen'|'unidades'|'proveedores'|'metas'>('resumen');
+  const [tab,setTab]=useState<'resumen'|'unidades'|'proveedores'|'metas'|'ventas'>('resumen');
   const [periodo,setPeriodo]=useState(PERIODOS[0]);
   const [metrics,setMetrics]=useState<Record<string,UnidadMetric|null>>({});
   const [loading,setLoading]=useState(true);
@@ -28,6 +28,7 @@ export default function DireccionPage(){
   const [metas,setMetas]=useState<Record<string,number>>({});
   const [savingMetas,setSavingMetas]=useState(false);
   const [savedMetas,setSavedMetas]=useState(false);
+  const [ventasData,setVentasData]=useState<Record<string,{total:number;count:number;data:{fecha:string;monto:number;turno:string}[]}>>({});
 
   useEffect(()=>{
     if(typeof window!=='undefined'&&!sessionStorage.getItem('pillo_direccion')){
@@ -50,9 +51,24 @@ export default function DireccionPage(){
     try{const res=await fetch('/api/piloncillo/proveedores');const json=await res.json();setProveedores(json.data||[]);}catch{}
   },[]);
 
+  const loadVentas=useCallback(async()=>{
+    const results=await Promise.all(UNIDADES.map(async u=>{
+      try{const r=await fetch(`/api/piloncillo/ventas?unidad=${u.id}&periodo=${periodo}`);const j=await r.json();return{id:u.id,total:j.total||0,count:j.count||0,data:j.data||[]};}
+      catch{return{id:u.id,total:0,count:0,data:[]};}
+    }));
+    const map:Record<string,{total:number;count:number;data:{fecha:string;monto:number;turno:string}[]}>={}
+    results.forEach(r=>{map[r.id]=r;});
+    setVentasData(map);
+  },[periodo]);
+
+  const loadMetas=useCallback(async()=>{
+    try{const res=await fetch(`/api/piloncillo/metas?periodo=${periodo}`);const json=await res.json();setMetas(json.unidades||{});}catch{}
+  },[periodo]);
+
   useEffect(()=>{loadMetrics();},[loadMetrics]);
   useEffect(()=>{loadProveedores();},[loadProveedores]);
   useEffect(()=>{loadMetas();},[loadMetas]);
+  useEffect(()=>{if(tab==='ventas') loadVentas();},[tab,loadVentas]);
 
   // Alertas automáticas
   const alertas:Alerta[]=[
@@ -81,10 +97,6 @@ export default function DireccionPage(){
   const deleteProveedor=async(id:string)=>{
     await fetch(`/api/piloncillo/proveedores?id=${id}`,{method:'DELETE'});loadProveedores();
   };
-
-  const loadMetas=useCallback(async()=>{
-    try{const res=await fetch(`/api/piloncillo/metas?periodo=${periodo}`);const json=await res.json();setMetas(json.unidades||{});}catch{}
-  },[periodo]);
 
   const exportarUnidades=()=>{
     const headers='Unidad,Período,Score,Desempeño,Comportamiento,Incidencias,Ingresos,Meta,% Meta';
@@ -149,8 +161,8 @@ export default function DireccionPage(){
         </div>
       </header>
 
-      <div className="bg-white border-b border-stone-100 px-4 flex gap-1 sticky top-0 z-10">
-        {([['resumen','🤖 Resumen IA'],['unidades','🏪 Unidades'],['proveedores','🚚 Proveedores'],['metas','🎯 Metas']] as const).map(([t,label])=>(
+      <div className="bg-white border-b border-stone-100 px-4 flex gap-1 sticky top-0 z-10 overflow-x-auto">
+        {([['resumen','🤖 Resumen IA'],['unidades','🏪 Unidades'],['proveedores','🚚 Proveedores'],['metas','🎯 Metas'],['ventas','💰 Ventas']] as const).map(([t,label])=>(
           <button key={t} onClick={()=>setTab(t)}
             className={`px-4 py-3.5 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap ${
               tab===t?'border-amber-500 text-amber-700':'border-transparent text-stone-400 hover:text-stone-600'
@@ -361,6 +373,71 @@ export default function DireccionPage(){
               className={`w-full py-4 rounded-2xl font-bold text-white transition-all ${savedMetas?'bg-emerald-500':'bg-amber-600 hover:bg-amber-700'} disabled:opacity-50`}>
               {savingMetas?'Guardando...' : savedMetas?'✅ Metas guardadas para '+periodo : '💾 Guardar metas del período'}
             </button>
+          </div>
+        )}
+
+        {/* VENTAS */}
+        {tab==='ventas'&&(
+          <div className="space-y-4">
+            {(()=>{
+              const totalVentas=Object.values(ventasData).reduce((a,v)=>a+(v.total||0),0);
+              const metaGlobal=UNIDADES.reduce((a,u)=>a+(metas[u.id]||0),0);
+              const pctGlobal=metaGlobal>0?Math.round((totalVentas/metaGlobal)*100):null;
+              return(
+                <div className="bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200 rounded-2xl p-4">
+                  <h2 className="font-bold text-stone-800 mb-3">💰 Ingresos del período — {periodo}</h2>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-white rounded-xl p-3 text-center">
+                      <div className="text-xl font-black text-emerald-700">{fmt(totalVentas)}</div>
+                      <div className="text-xs text-stone-400">Total período</div>
+                    </div>
+                    <div className="bg-white rounded-xl p-3 text-center">
+                      <div className={`text-xl font-black ${pctGlobal==null?'text-stone-400':pctGlobal>=100?'text-emerald-700':pctGlobal>=80?'text-amber-600':'text-red-500'}`}>
+                        {pctGlobal!=null?`${pctGlobal}%`:'—'}
+                      </div>
+                      <div className="text-xs text-stone-400">% meta global</div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            <div className="space-y-3">
+              {[...UNIDADES].sort((a,b)=>(ventasData[b.id]?.total||0)-(ventasData[a.id]?.total||0)).map(u=>{
+                const v=ventasData[u.id]||{total:0,count:0,data:[]};
+                const metaU=metas[u.id]||0;
+                const pct=metaU>0?Math.round((v.total/metaU)*100):null;
+                const noReporto=v.count===0;
+                return(
+                  <div key={u.id} className={`bg-white rounded-2xl p-4 shadow-sm border-2 ${noReporto?'border-stone-100':'border-stone-100'} ${noReporto?'opacity-60':''}`}>
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className={`w-10 h-10 bg-gradient-to-br ${u.color} rounded-xl flex items-center justify-center text-lg`}>{u.emoji}</div>
+                      <div className="flex-1">
+                        <div className="font-semibold text-stone-800 text-sm">{u.nombre}</div>
+                        <div className="text-xs text-stone-400">{v.count} registro{v.count!==1?'s':''}{noReporto?' · Sin datos':''}</div>
+                      </div>
+                      <div className="text-right">
+                        <div className={`text-lg font-black ${noReporto?'text-stone-300':pct!=null&&pct>=100?'text-emerald-600':pct!=null&&pct>=80?'text-amber-600':'text-stone-700'}`}>{fmt(v.total)}</div>
+                        {pct!=null&&<div className={`text-xs font-bold ${pct>=100?'text-emerald-500':pct>=80?'text-amber-500':'text-red-500'}`}>{pct}% meta</div>}
+                      </div>
+                    </div>
+                    {metaU>0&&!noReporto&&(
+                      <div className="h-2 bg-stone-100 rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full ${pct!=null&&pct>=100?'bg-emerald-400':pct!=null&&pct>=80?'bg-amber-400':'bg-rose-400'}`} style={{width:`${Math.min(100,pct||0)}%`}}/>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {Object.values(ventasData).every(v=>v.count===0)&&(
+              <div className="text-center py-10 text-stone-400">
+                <div className="text-4xl mb-2">💰</div>
+                <p className="text-sm">Sin datos de ventas para este período</p>
+                <p className="text-xs mt-1">Los gerentes registran ventas desde su panel</p>
+              </div>
+            )}
           </div>
         )}
       </main>
