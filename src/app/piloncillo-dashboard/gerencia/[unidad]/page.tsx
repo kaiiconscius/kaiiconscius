@@ -141,7 +141,7 @@ export default function UnidadPage(){
   const params=useParams();
   const unidad=params.unidad as string;
   const info=UNIDADES[unidad];
-  const [tab,setTab]=useState<'evaluar'|'evolucion'|'historial'|'checklist'>('evaluar');
+  const [tab,setTab]=useState<'evaluar'|'evolucion'|'historial'|'checklist'|'ventas'>('evaluar');
   const [historial,setHistorial]=useState<EvalGerencia[]>([]);
   const [saving,setSaving]=useState(false);
   const [saved,setSaved]=useState(false);
@@ -158,6 +158,14 @@ export default function UnidadPage(){
   const [savingCheck,setSavingCheck]=useState(false);
   const [savedCheck,setSavedCheck]=useState(false);
   const [checkHistorial,setCheckHistorial]=useState<{fecha:string;apertPct:number;cierrePct:number}[]>([]);
+  const [ventaFecha,setVentaFecha]=useState(()=>new Date().toISOString().slice(0,10));
+  const [ventaMonto,setVentaMonto]=useState('');
+  const [ventaTurno,setVentaTurno]=useState<'completo'|'manana'|'tarde'|'noche'>('completo');
+  const [ventaNotas,setVentaNotas]=useState('');
+  const [ventasSemana,setVentasSemana]=useState<{fecha:string;monto:number;turno:string}[]>([]);
+  const [ventasTotal,setVentasTotal]=useState(0);
+  const [savingVenta,setSavingVenta]=useState(false);
+  const [savedVenta,setSavedVenta]=useState(false);
 
   useEffect(()=>{
     if(typeof window!=='undefined'&&!sessionStorage.getItem(`pillo_gerencia_${unidad}`)){
@@ -224,6 +232,27 @@ export default function UnidadPage(){
 
   useEffect(()=>{if(tab==='checklist') loadChecklist();},[tab,loadChecklist]);
 
+  const loadVentas=useCallback(async()=>{
+    try{
+      const res=await fetch(`/api/piloncillo/ventas?unidad=${unidad}&periodo=${periodo}`);
+      const json=await res.json();
+      setVentasSemana(json.data||[]);
+      setVentasTotal(json.total||0);
+    }catch{}
+  },[unidad,periodo]);
+
+  const saveVenta=async()=>{
+    if(!ventaMonto||Number(ventaMonto)<=0) return;
+    setSavingVenta(true);
+    try{
+      const res=await fetch('/api/piloncillo/ventas',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({unidad,fecha:ventaFecha,monto:Number(ventaMonto),turno:ventaTurno,notas:ventaNotas})});
+      if(res.ok){setSavedVenta(true);setVentaMonto('');setVentaNotas('');setTimeout(()=>setSavedVenta(false),3000);loadVentas();}
+    }finally{setSavingVenta(false);}
+  };
+
+  useEffect(()=>{if(tab==='ventas') loadVentas();},[tab,loadVentas]);
+
   const exportarHistorial=()=>{
     if(!historial.length) return;
     const headers='Unidad,Período,Score,Desempeño,Comportamiento,Incidencias,Ingresos,Meta,% Meta,Evaluado por,Notas';
@@ -264,7 +293,7 @@ export default function UnidadPage(){
       </header>
 
       <div className="bg-white border-b border-stone-100 px-4 flex gap-1 sticky top-0 z-10">
-        {([['evaluar','📝 Evaluar'],['evolucion','📈 Evolución'],['historial','📋 Historial'],['checklist','✅ Checklist']] as const).map(([t,label])=>(
+        {([['evaluar','📝 Evaluar'],['evolucion','📈 Evolución'],['historial','📋 Historial'],['checklist','✅ Check'],['ventas','💰 Ventas']] as const).map(([t,label])=>(
           <button key={t} onClick={()=>setTab(t)}
             className={`px-4 py-3.5 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap ${
               tab===t?'border-amber-500 text-amber-700':'border-transparent text-stone-400 hover:text-stone-600'
@@ -424,6 +453,111 @@ export default function UnidadPage(){
             )}
           </div>
         )}
+        {/* ── VENTAS ── */}
+        {tab==='ventas'&&(()=>{
+          const metaActual=d.metaMensual||0;
+          const pctMeta=metaActual>0?Math.min(100,Math.round((ventasTotal/metaActual)*100)):null;
+          const sorted=[...ventasSemana].sort((a,b)=>b.fecha.localeCompare(a.fecha));
+          const maxMonto=sorted.length?Math.max(...sorted.map(v=>v.monto)):1;
+          return(
+            <div className="space-y-5">
+              {/* KPI */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-white rounded-2xl p-4 text-center shadow-sm border border-stone-100">
+                  <div className="text-2xl font-black text-stone-800">{fmt(ventasTotal)}</div>
+                  <div className="text-xs text-stone-400 mt-1">Total {periodo}</div>
+                </div>
+                <div className="bg-white rounded-2xl p-4 text-center shadow-sm border border-stone-100">
+                  {pctMeta!==null?(
+                    <>
+                      <div className={`text-2xl font-black ${pctMeta>=100?'text-emerald-600':pctMeta>=80?'text-amber-600':'text-red-500'}`}>{pctMeta}%</div>
+                      <div className="text-xs text-stone-400 mt-1">de meta</div>
+                    </>
+                  ):(
+                    <>
+                      <div className="text-2xl font-black text-stone-300">—</div>
+                      <div className="text-xs text-stone-300 mt-1">Sin meta fijada</div>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {pctMeta!==null&&(
+                <div className="bg-white rounded-2xl p-4 shadow-sm border border-stone-100">
+                  <div className="flex justify-between text-xs mb-2">
+                    <span className="text-stone-400">{fmt(ventasTotal)} de {fmt(metaActual)}</span>
+                    <span className={`font-bold ${pctMeta>=100?'text-emerald-600':pctMeta>=80?'text-amber-600':'text-red-500'}`}>{pctMeta}%</span>
+                  </div>
+                  <div className="h-3 bg-stone-100 rounded-full overflow-hidden">
+                    <div className={`h-full rounded-full transition-all ${pctMeta>=100?'bg-emerald-400':pctMeta>=80?'bg-amber-400':'bg-red-400'}`} style={{width:`${pctMeta}%`}}/>
+                  </div>
+                </div>
+              )}
+
+              {/* Form registro */}
+              <div className="bg-white rounded-2xl p-4 shadow-sm border border-stone-100">
+                <h3 className="font-bold text-stone-700 text-sm mb-4">Registrar ventas del día</h3>
+                <div className="grid grid-cols-2 gap-3 mb-3">
+                  <div>
+                    <label className="text-xs text-stone-400 font-medium block mb-1.5">Fecha</label>
+                    <input type="date" value={ventaFecha} onChange={e=>setVentaFecha(e.target.value)}
+                      className="w-full border border-stone-200 rounded-xl px-3 py-2.5 text-sm text-stone-700 focus:outline-none focus:border-amber-400"/>
+                  </div>
+                  <div>
+                    <label className="text-xs text-stone-400 font-medium block mb-1.5">Turno</label>
+                    <select value={ventaTurno} onChange={e=>setVentaTurno(e.target.value as typeof ventaTurno)}
+                      className="w-full border border-stone-200 rounded-xl px-3 py-2.5 text-sm text-stone-700 focus:outline-none focus:border-amber-400">
+                      <option value="completo">Día completo</option>
+                      <option value="manana">Mañana</option>
+                      <option value="tarde">Tarde</option>
+                      <option value="noche">Noche</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="mb-3">
+                  <label className="text-xs text-stone-400 font-medium block mb-1.5">Monto de ventas</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2.5 text-stone-400 text-sm">$</span>
+                    <input type="number" value={ventaMonto} onChange={e=>setVentaMonto(e.target.value)}
+                      className="w-full border border-stone-200 rounded-xl pl-7 pr-3 py-2.5 text-sm font-bold text-stone-700 focus:outline-none focus:border-amber-400"
+                      placeholder="0"/>
+                  </div>
+                </div>
+                <div className="mb-4">
+                  <label className="text-xs text-stone-400 font-medium block mb-1.5">Nota (opcional)</label>
+                  <input value={ventaNotas} onChange={e=>setVentaNotas(e.target.value)}
+                    className="w-full border border-stone-200 rounded-xl px-3 py-2.5 text-sm text-stone-600 focus:outline-none focus:border-amber-400"
+                    placeholder="Evento especial, baja afluencia..."/>
+                </div>
+                <button onClick={saveVenta} disabled={savingVenta||!ventaMonto||Number(ventaMonto)<=0}
+                  className={`w-full py-3 rounded-xl font-bold text-white transition-all ${savedVenta?'bg-emerald-500':`bg-gradient-to-r ${info.bg} hover:opacity-90`} disabled:opacity-40`}>
+                  {savingVenta?'Guardando...':savedVenta?'✅ Registrado':'💾 Guardar ventas'}
+                </button>
+              </div>
+
+              {/* Mini bar chart */}
+              {sorted.length>0&&(
+                <div className="bg-white rounded-2xl p-4 shadow-sm border border-stone-100">
+                  <h3 className="font-bold text-stone-700 text-sm mb-4">Histórico del período</h3>
+                  <div className="space-y-2">
+                    {sorted.slice(0,15).map(v=>(
+                      <div key={`${v.fecha}-${v.turno}`} className="flex items-center gap-3">
+                        <div className="text-xs text-stone-400 w-14 flex-shrink-0">{v.fecha.slice(5)}</div>
+                        <div className="flex-1 h-6 bg-stone-50 rounded-lg overflow-hidden relative">
+                          <div className={`h-full rounded-lg bg-gradient-to-r ${info.bg} opacity-70 transition-all`}
+                            style={{width:`${Math.round((v.monto/maxMonto)*100)}%`}}/>
+                          <span className="absolute inset-0 flex items-center px-2 text-xs font-bold text-stone-700">{fmt(v.monto)}</span>
+                        </div>
+                        {v.turno!=='completo'&&<span className="text-xs text-stone-300 w-10 flex-shrink-0">{v.turno==='manana'?'🌅':v.turno==='tarde'?'🌇':'🌙'}</span>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
         {/* ── CHECKLIST ── */}
         {tab==='checklist'&&(()=>{
           const apertDone=apertura.filter(i=>i.done).length;
