@@ -3,6 +3,9 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { setUsuarioSesion, registrarMovimiento } from '../../lib/bitacora';
+
+interface UsuarioReg { id: string; nombre: string; rol: string; activo: boolean; }
 
 const SECCIONES = [
   { id: 'gerencia',       nombre: 'Gerencias',       desc: 'Mis unidades · Evaluación',   emoji: '🏪', bg: 'from-amber-600 to-orange-600',  href: '/piloncillo-dashboard/gerencia' },
@@ -14,15 +17,27 @@ const SECCIONES = [
 export default function PiloncilloDashboardPage() {
   const router = useRouter();
   const [modal, setModal] = useState<string | null>(null);
+  const [step, setStep] = useState<'pin' | 'identidad'>('pin');
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [usuarios, setUsuarios] = useState<UsuarioReg[]>([]);
+  const [usuarioSel, setUsuarioSel] = useState('');
+  const [nombreNuevo, setNombreNuevo] = useState('');
 
   const handleSelect = (s: typeof SECCIONES[0]) => {
     if (s.href) { router.push(s.href); return; }
     setModal(s.id);
+    setStep('pin');
     setPin('');
     setError('');
+    setUsuarioSel('');
+    setNombreNuevo('');
+  };
+
+  const continuarSeccion = (id: string) => {
+    sessionStorage.setItem(`pillo_${id}`, '1');
+    router.push(`/piloncillo-dashboard/${id}`);
   };
 
   const handleValidar = async () => {
@@ -37,8 +52,12 @@ export default function PiloncilloDashboardPage() {
       });
       const data = await res.json();
       if (data.ok) {
-        sessionStorage.setItem(`pillo_${modal}`, '1');
-        router.push(`/piloncillo-dashboard/${modal}`);
+        try {
+          const r = await fetch(`/api/piloncillo/usuarios?rol=${modal}`);
+          const j = await r.json();
+          setUsuarios((j.data || []).filter((u: UsuarioReg) => u.activo));
+        } catch { setUsuarios([]); }
+        setStep('identidad');
       } else {
         setError('PIN incorrecto');
         setPin('');
@@ -48,6 +67,24 @@ export default function PiloncilloDashboardPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleConfirmarIdentidad = async () => {
+    if (!modal) return;
+    let usuario = usuarios.find(u => u.id === usuarioSel);
+    if (!usuario && nombreNuevo.trim()) {
+      try {
+        const r = await fetch('/api/piloncillo/usuarios', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nombre: nombreNuevo.trim(), rol: modal, unidades: [] }),
+        });
+        if (r.ok) usuario = await r.json();
+      } catch { /* continúa sin registrar */ }
+    }
+    if (usuario) setUsuarioSesion({ id: usuario.id, nombre: usuario.nombre, rol: usuario.rol });
+    await registrarMovimiento({ accion: 'login', detalle: `Acceso a ${SECCIONES.find(s => s.id === modal)?.nombre || modal}`, seccion: modal });
+    continuarSeccion(modal);
   };
 
   const actual = SECCIONES.find(s => s.id === modal);
@@ -96,33 +133,76 @@ export default function PiloncilloDashboardPage() {
           onClick={() => setModal(null)}
         >
           <div className="bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl" onClick={e => e.stopPropagation()}>
-            <div className="text-center mb-6">
-              <div className="text-4xl mb-2">{actual?.emoji}</div>
-              <h2 className="text-xl font-bold text-stone-800">{actual?.nombre}</h2>
-              <p className="text-stone-400 text-sm mt-1">PIN de acceso</p>
-            </div>
-            <div className="flex justify-center gap-3 mb-5">
-              {[0,1,2,3].map(i => (
-                <div key={i} className={`w-3.5 h-3.5 rounded-full transition-all ${pin.length > i ? 'bg-amber-600 scale-110' : 'bg-stone-200'}`} />
-              ))}
-            </div>
-            <input
-              type="password" inputMode="numeric" maxLength={6}
-              value={pin}
-              onChange={e => setPin(e.target.value.replace(/\D/g, ''))}
-              onKeyDown={e => e.key === 'Enter' && handleValidar()}
-              className="w-full border-2 border-stone-200 rounded-2xl px-4 py-3.5 text-center text-xl font-mono tracking-[0.6em] focus:outline-none focus:border-amber-400 bg-stone-50"
-              autoFocus
-            />
-            {error && <p className="text-red-500 text-sm text-center mt-3">{error}</p>}
-            <div className="flex gap-3 mt-6">
-              <button onClick={() => setModal(null)} className="flex-1 py-3 rounded-xl border-2 border-stone-200 text-stone-500 font-medium">Cancelar</button>
-              <button
-                onClick={handleValidar}
-                disabled={pin.length < 4 || loading}
-                className="flex-1 py-3 rounded-xl bg-amber-600 text-white font-bold hover:bg-amber-700 disabled:opacity-40"
-              >{loading ? '...' : 'Entrar →'}</button>
-            </div>
+            {step === 'pin' ? (
+              <>
+                <div className="text-center mb-6">
+                  <div className="text-4xl mb-2">{actual?.emoji}</div>
+                  <h2 className="text-xl font-bold text-stone-800">{actual?.nombre}</h2>
+                  <p className="text-stone-400 text-sm mt-1">PIN de acceso</p>
+                </div>
+                <div className="flex justify-center gap-3 mb-5">
+                  {[0,1,2,3].map(i => (
+                    <div key={i} className={`w-3.5 h-3.5 rounded-full transition-all ${pin.length > i ? 'bg-amber-600 scale-110' : 'bg-stone-200'}`} />
+                  ))}
+                </div>
+                <input
+                  type="password" inputMode="numeric" maxLength={6}
+                  value={pin}
+                  onChange={e => setPin(e.target.value.replace(/\D/g, ''))}
+                  onKeyDown={e => e.key === 'Enter' && handleValidar()}
+                  className="w-full border-2 border-stone-200 rounded-2xl px-4 py-3.5 text-center text-xl font-mono tracking-[0.6em] focus:outline-none focus:border-amber-400 bg-stone-50"
+                  autoFocus
+                />
+                {error && <p className="text-red-500 text-sm text-center mt-3">{error}</p>}
+                <div className="flex gap-3 mt-6">
+                  <button onClick={() => setModal(null)} className="flex-1 py-3 rounded-xl border-2 border-stone-200 text-stone-500 font-medium">Cancelar</button>
+                  <button
+                    onClick={handleValidar}
+                    disabled={pin.length < 4 || loading}
+                    className="flex-1 py-3 rounded-xl bg-amber-600 text-white font-bold hover:bg-amber-700 disabled:opacity-40"
+                  >{loading ? '...' : 'Entrar →'}</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="text-center mb-5">
+                  <div className="text-4xl mb-2">👋</div>
+                  <h2 className="text-xl font-bold text-stone-800">¿Quién eres?</h2>
+                  <p className="text-stone-400 text-sm mt-1">Para registrar tu actividad en la bitácora</p>
+                </div>
+                {usuarios.length > 0 && (
+                  <div className="space-y-2 mb-3 max-h-48 overflow-y-auto">
+                    {usuarios.map(u => (
+                      <button key={u.id} onClick={() => { setUsuarioSel(u.id); setNombreNuevo(''); }}
+                        className={`w-full text-left px-4 py-3 rounded-xl border-2 font-medium text-sm transition-colors ${usuarioSel === u.id ? 'border-amber-400 bg-amber-50 text-amber-800' : 'border-stone-200 text-stone-600 hover:border-stone-300'}`}>
+                        {u.nombre}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <div>
+                  <label className="text-xs text-stone-400 font-medium mb-1.5 block">{usuarios.length > 0 ? 'O escribe tu nombre si no apareces en la lista' : 'Escribe tu nombre'}</label>
+                  <input
+                    value={nombreNuevo}
+                    onChange={e => { setNombreNuevo(e.target.value); setUsuarioSel(''); }}
+                    onKeyDown={e => e.key === 'Enter' && handleConfirmarIdentidad()}
+                    placeholder="Tu nombre completo"
+                    className="w-full border-2 border-stone-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-amber-400 bg-stone-50"
+                  />
+                </div>
+                <div className="flex gap-3 mt-6">
+                  <button onClick={() => setStep('pin')} className="flex-1 py-3 rounded-xl border-2 border-stone-200 text-stone-500 font-medium">← Atrás</button>
+                  <button
+                    onClick={handleConfirmarIdentidad}
+                    disabled={!usuarioSel && !nombreNuevo.trim()}
+                    className="flex-1 py-3 rounded-xl bg-amber-600 text-white font-bold hover:bg-amber-700 disabled:opacity-40"
+                  >Continuar →</button>
+                </div>
+                <button onClick={() => continuarSeccion(modal!)} className="w-full text-center text-xs text-stone-400 hover:text-stone-600 mt-4">
+                  Omitir e ingresar sin identificarme
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}

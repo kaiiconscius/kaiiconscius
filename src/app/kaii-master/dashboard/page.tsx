@@ -208,6 +208,9 @@ export default function KaiiMasterDashboard() {
                 {totalAlertas} alerta{totalAlertas !== 1 ? 's' : ''}
               </span>
             )}
+            <button onClick={() => router.push('/kaii-master/usuarios')} className="text-slate-500 hover:text-amber-400 text-sm transition-colors px-2 py-1" title="Usuarios y Bitácora">
+              👤
+            </button>
             <button onClick={logout} className="text-slate-500 hover:text-slate-300 text-sm transition-colors px-2 py-1">
               Salir
             </button>

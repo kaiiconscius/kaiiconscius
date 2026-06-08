@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { registrarMovimiento } from '../../../lib/bitacora';
 
 interface UnidadMetric { score:number; desempeno_score:number; comportamiento_score:number; incidencias_score:number; ingresoReal:number; metaMensual:number; periodo:string; }
 interface Proveedor { id:string; nombre:string; categoria:string; estado:'verde'|'amarillo'|'rojo'; nota:string; }
@@ -92,7 +93,11 @@ export default function DireccionPage(){
 
   const saveProveedor=async()=>{
     const res=await fetch('/api/piloncillo/proveedores',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(formProv)});
-    if(res.ok){setShowProvForm(false);setFormProv({nombre:'',categoria:'',estado:'verde',nota:''});loadProveedores();}
+    if(res.ok){
+      setShowProvForm(false);
+      registrarMovimiento({accion:'proveedor agregado',detalle:`${formProv.nombre} · ${formProv.estado}`,seccion:'direccion'});
+      setFormProv({nombre:'',categoria:'',estado:'verde',nota:''});loadProveedores();
+    }
   };
   const deleteProveedor=async(id:string)=>{
     await fetch(`/api/piloncillo/proveedores?id=${id}`,{method:'DELETE'});loadProveedores();
@@ -116,7 +121,10 @@ export default function DireccionPage(){
     setSavingMetas(true);
     try{
       const res=await fetch('/api/piloncillo/metas',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({periodo,unidades:metas})});
-      if(res.ok){setSavedMetas(true);setTimeout(()=>setSavedMetas(false),3000);}
+      if(res.ok){
+        setSavedMetas(true);setTimeout(()=>setSavedMetas(false),3000);
+        registrarMovimiento({accion:'metas fijadas',detalle:`Período ${periodo} · ${Object.keys(metas).length} unidades`,seccion:'direccion'});
+      }
     }finally{setSavingMetas(false);}
   };
 

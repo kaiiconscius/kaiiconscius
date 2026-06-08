@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
+import { registrarMovimiento } from '../../../../lib/bitacora';
 
 interface EvalDesempeno { productividad:number; ingresoReal:number; metaMensual:number; eficienciaOperativa:number; controlInsumos:number; }
 interface EvalComportamiento { comunicacion:number; seguimiento:number; gestionProyectos:number; }
@@ -201,7 +202,10 @@ export default function UnidadPage(){
       method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({unidad,periodo,desempeno:d,comportamiento:c,incidencias:i,evaluadoPor,notas,...scores}),
     });
-    if(res.ok){setSaved(true);setTimeout(()=>setSaved(false),4000);}
+    if(res.ok){
+      setSaved(true);setTimeout(()=>setSaved(false),4000);
+      registrarMovimiento({accion:'evaluación guardada',detalle:`${info?.nombre||unidad} · ${periodo} · score ${scores.score}`,seccion:'gerencia',unidad});
+    }
     setSaving(false);
   };
 
@@ -226,7 +230,10 @@ export default function UnidadPage(){
       const cierrePct=Math.round((cierre.filter(i=>i.done).length/cierre.length)*100);
       const res=await fetch('/api/piloncillo/checklists',{method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({unidad,fecha:checkFecha,apertura:apertura.map(i=>i.done),cierre:cierre.map(i=>i.done),apertPct,cierrePct})});
-      if(res.ok){setSavedCheck(true);setTimeout(()=>setSavedCheck(false),3000);loadChecklist();}
+      if(res.ok){
+        setSavedCheck(true);setTimeout(()=>setSavedCheck(false),3000);loadChecklist();
+        registrarMovimiento({accion:'checklist guardado',detalle:`${info?.nombre||unidad} · ${checkFecha} · apertura ${apertPct}% / cierre ${cierrePct}%`,seccion:'gerencia',unidad});
+      }
     }finally{setSavingCheck(false);}
   };
 
@@ -247,7 +254,10 @@ export default function UnidadPage(){
     try{
       const res=await fetch('/api/piloncillo/ventas',{method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({unidad,fecha:ventaFecha,monto:Number(ventaMonto),turno:ventaTurno,notas:ventaNotas})});
-      if(res.ok){setSavedVenta(true);setVentaMonto('');setVentaNotas('');setTimeout(()=>setSavedVenta(false),3000);loadVentas();}
+      if(res.ok){
+        setSavedVenta(true);setVentaMonto('');setVentaNotas('');setTimeout(()=>setSavedVenta(false),3000);loadVentas();
+        registrarMovimiento({accion:'venta registrada',detalle:`${info?.nombre||unidad} · ${ventaFecha} · ${ventaTurno} · $${Number(ventaMonto).toLocaleString('es-MX')}`,seccion:'gerencia',unidad});
+      }
     }finally{setSavingVenta(false);}
   };
 
